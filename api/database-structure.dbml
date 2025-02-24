@@ -1,0 +1,43 @@
+//Run here: https://dbdiagram.io/d
+Table auth_user {
+  id integer [primary key]
+  username varchar
+  first_name varchar
+  last_name varchar
+  email varchar
+  password varchar
+  last_login timestamp
+  is_superuser boolean
+  is_staff boolean
+  is_active boolean
+  date_joined timestamp
+}
+
+Table inventory {
+  id integer [primary key]
+  inventory_number varchar [unique]
+  name varchar
+  date date
+  user_id integer
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table inventory_item {
+  id integer [primary key]
+  inventory_id integer
+  department integer [note: 'Dział gospodarczy']
+  asset_group integer [note: 'Grupa aktywów trw.']
+  category varchar [note: 'Grupa rodzajowa']
+  inventory_number varchar
+  asset_component bigint [note: 'Składnik aktyw. trw.']
+  sub_number integer
+  acquisition_date date
+  asset_description varchar [note: 'Oznaczenie aktywów trwałych']
+  quantity integer
+  initial_value decimal(10, 2) [note: 'WartPocz']
+  room varchar [note: 'Pomieszczenie']
+}
+
+Ref: inventory.user_id > auth_user.id // Many-to-one relationship
+Ref: inventory_item.inventory_id > inventory.id // Many-to-one relationship
