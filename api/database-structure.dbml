@@ -15,29 +15,26 @@ Table auth_user {
 
 Table inventory {
   id integer [primary key]
-  inventory_number varchar [unique]
   name varchar
   date date
-  user_id integer
-  created_at timestamp
-  updated_at timestamp
+  user auth_user
 }
 
 Table inventory_item {
   id integer [primary key]
-  inventory_id integer
-  department integer [note: 'Dział gospodarczy']
-  asset_group integer [note: 'Grupa aktywów trw.']
-  category varchar [note: 'Grupa rodzajowa']
+  inventory inventory
+  department integer 
+  asset_group integer 
+  category varchar
   inventory_number varchar
-  asset_component bigint [note: 'Składnik aktyw. trw.']
+  asset_component bigint 
   sub_number integer
   acquisition_date date
-  asset_description varchar [note: 'Oznaczenie aktywów trwałych']
+  asset_description varchar
   quantity integer
-  initial_value decimal(10, 2) [note: 'WartPocz']
-  room varchar [note: 'Pomieszczenie']
+  initial_value decimal(10, 2) 
+  room varchar 
 }
 
-Ref: inventory.user_id > auth_user.id // Many-to-one relationship
-Ref: inventory_item.inventory_id > inventory.id // Many-to-one relationship
+Ref: inventory.user > auth_user.id // Many-to-one relationship
+Ref: inventory_item.inventory > inventory.id // Many-to-one relationship
