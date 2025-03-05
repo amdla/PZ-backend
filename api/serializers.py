@@ -14,6 +14,7 @@ Django's built-in `User` model contains:
 """
 
 from django.contrib.auth.models import User  # Django's built-in auth user
+
 from rest_framework import serializers
 
 from models import Inventory, InventoryItem
@@ -35,7 +36,7 @@ class UserSerializer(serializers.ModelSerializer):
         - `inventories`: Lists all inventory IDs associated with the user.
     """
 
-    inventories = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    inventories = serializers.PrimaryKeyRelatedField(many=True, read_only=True)  # Show user-owned inventories
 
     class Meta:
         model = User
@@ -60,8 +61,8 @@ class InventorySerializer(serializers.ModelSerializer):
         - `items`: List of inventory item IDs related to this inventory.
     """
 
-    user = UserSerializer(read_only=True)
-    items = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    user = UserSerializer(read_only=True)  # Nest user details
+    items = serializers.PrimaryKeyRelatedField(many=True, read_only=True)  # List related inventory items
 
     class Meta:
         model = Inventory
@@ -93,7 +94,7 @@ class InventoryItemSerializer(serializers.ModelSerializer):
         - `inventory`: Linked by `ForeignKey(Inventory)`, allowing selection by ID.
     """
 
-    inventory = serializers.PrimaryKeyRelatedField(queryset=Inventory.objects.all())
+    inventory = serializers.PrimaryKeyRelatedField(queryset=Inventory.objects.all())  # Allow selection by ID
 
     class Meta:
         model = InventoryItem
