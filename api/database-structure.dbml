@@ -33,7 +33,8 @@ Table inventory_item {
   asset_description varchar
   quantity integer
   initial_value decimal(10, 2) 
-  room varchar 
+  lastInventoryRoom varchar
+  currentRoom varchar 
 }
 
 Ref: inventory.user > auth_user.id // Many-to-one relationship

@@ -81,7 +81,10 @@ class InventoryItem(models.Model):
     asset_description = models.CharField(max_length=255)  # Oznaczenie aktywów trwałych
     quantity = models.IntegerField()  # "Ilość"
     initial_value = models.DecimalField(max_digits=10, decimal_places=2)  # Wartość
-    room = models.CharField(max_length=50)  # Pomieszczenie
+    lastInventoryRoom = models.CharField(max_length=50)  # Pomieszczenie, w którym znajdował się przedmiot podczas ostatniej inwentaryzacji
+    currentRoom = models.CharField(max_length=50)  # Pomieszczenie, w którym obecnie znajduje się przedmiot
+                                                   # TODO: Jeśli przedmiot nie zmienił sali, to
+                                                   # currentRoom = lastInventoryRoom czy np. currentRoom zostawiamy puste?
 
     def __str__(self):
         """
@@ -99,4 +102,5 @@ class InventoryItem(models.Model):
                 f"Asset description: {self.asset_description}, "
                 f"Quantity: {self.quantity}, "
                 f"Initial value: {self.initial_value}, "
-                f"Room: {self.room}")
+                f"Last Inv room: {self.lastInventoryRoom}"
+                f"Current room: {self.currentRoom}")
