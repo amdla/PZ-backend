@@ -88,7 +88,9 @@ class InventoryItemSerializer(serializers.ModelSerializer):
         - `asset_description` (str): Description of the asset.
         - `quantity` (int): Number of items.
         - `initial_value` (decimal): Initial monetary value.
-        - `room` (str): Room location.
+        - `lastInventoryRoom` (str): Room location established during previous Inventory.
+        - `currentRoom` (str): Current room location.
+
 
     Relationships:
         - `inventory`: Linked by `ForeignKey(Inventory)`, allowing selection by ID.
@@ -101,5 +103,5 @@ class InventoryItemSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'inventory', 'department', 'asset_group', 'category',
             'inventory_number', 'asset_component', 'sub_number', 'acquisition_date',
-            'asset_description', 'quantity', 'initial_value', 'room'
+            'asset_description', 'quantity', 'initial_value', 'lastInventoryRoom', 'currentRoom'
         ]

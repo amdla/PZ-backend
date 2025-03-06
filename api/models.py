@@ -63,7 +63,8 @@ class InventoryItem(models.Model):
         - `asset_description` (str): Description of the asset.
         - `quantity` (int): Number of units.
         - `initial_value` (decimal): Initial monetary value of the item.
-        - `room` (str): Room where the item is stored.
+        - `lastInventoryRoom` (str): Room where the item was previously stored.
+        - `currentRoom` (str): Room where the item is stored at the moment.
 
     Relationships:
         - Each item is linked to an inventory via `ForeignKey(Inventory)`.
@@ -81,8 +82,9 @@ class InventoryItem(models.Model):
     asset_description = models.CharField(max_length=255)  # Oznaczenie aktywów trwałych
     quantity = models.IntegerField()  # "Ilość"
     initial_value = models.DecimalField(max_digits=10, decimal_places=2)  # Wartość
-    room = models.CharField(max_length=50)  # Pomieszczenie
-
+    lastInventoryRoom = models.CharField(max_length=50)  # Poprzednie pomieszczenie
+    currentRoom = models.CharField(max_length=50)  # Pomieszczenie
+    
     def __str__(self):
         """
         Returns a readable string representation of the inventory item.
@@ -99,4 +101,5 @@ class InventoryItem(models.Model):
                 f"Asset description: {self.asset_description}, "
                 f"Quantity: {self.quantity}, "
                 f"Initial value: {self.initial_value}, "
-                f"Room: {self.room}")
+                f"Last Inv room: {self.lastInventoryRoom}"
+                f"Current room: {self.currentRoom}")
