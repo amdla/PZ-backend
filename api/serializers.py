@@ -17,7 +17,7 @@ from django.contrib.auth.models import User  # Django's built-in auth user
 
 from rest_framework import serializers
 
-from models import Inventory, InventoryItem
+from .models import Inventory, InventoryItem
 
 
 class UserSerializer(serializers.ModelSerializer):

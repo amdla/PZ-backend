@@ -38,6 +38,8 @@ MIDDLEWARE = [
 # Root URL configuration
 ROOT_URLCONF = 'config.urls'
 
+ALLOWED_HOSTS = ['0.0.0.0', 'localhost']
+
 # Database configuration
 DATABASES = {
     'default': dj_database_url.config(default=env('DATABASE_URL'))
