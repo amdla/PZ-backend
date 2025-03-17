@@ -1,0 +1,500 @@
+{
+	"info": {
+		"_postman_id": "584d1903-9a96-4a5b-aacd-70cc38a622fc",
+		"name": "PZ Collection",
+		"description": "Testing endpoints of a team project at WUT.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "43131737"
+	},
+	"item": [
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Auxillary",
+					"item": [
+						{
+							"name": "Deleting All",
+							"item": [
+								{
+									"name": "Get list of users",
+									"event": [
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"let users = pm.response.json(); // zakładamy, że odpowiedź to tablica obiektów\r",
+													"// Zapisujemy wszystkie ID użytkowników do zmiennej środowiskowej w formie JSON\r",
+													"let userIds = users.map(user => user.id);\r",
+													"pm.environment.set(\"userIds\", JSON.stringify(userIds));\r",
+													""
+												],
+												"type": "text/javascript",
+												"packages": {}
+											}
+										}
+									],
+									"request": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{base_url}}/users",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"users"
+											]
+										}
+									},
+									"response": []
+								},
+								{
+									"name": "Delete next user",
+									"event": [
+										{
+											"listen": "prerequest",
+											"script": {
+												"exec": [
+													"let userIds = JSON.parse(pm.environment.get(\"userIds\") || \"[]\");\r",
+													"if (userIds.length > 0) {\r",
+													"    let userId = userIds.shift();\r",
+													"    pm.environment.set(\"userIds\", JSON.stringify(userIds));\r",
+													"    pm.environment.set(\"currentUserId\", userId);\r",
+													"} else {\r",
+													"    pm.environment.unset(\"currentUserId\");\r",
+													"}\r",
+													""
+												],
+												"type": "text/javascript",
+												"packages": {}
+											}
+										},
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"pm.test(\"Status code is 204\", function () {\r",
+													"    pm.response.to.have.status(204);\r",
+													"});\r",
+													"\r",
+													"let userIds = JSON.parse(pm.environment.get(\"userIds\") || \"[]\");\r",
+													"\r",
+													"if (userIds.length > 0) {\r",
+													"    pm.execution.setNextRequest(\"Delete next user\");\r",
+													"} else {\r",
+													"    pm.execution.setNextRequest(null);\r",
+													"}\r",
+													""
+												],
+												"type": "text/javascript",
+												"packages": {}
+											}
+										}
+									],
+									"request": {
+										"method": "DELETE",
+										"header": [],
+										"url": {
+											"raw": "{{base_url}}/users/{{currentUserId}}/",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"users",
+												"{{currentUserId}}",
+												""
+											]
+										}
+									},
+									"response": []
+								}
+							],
+							"description": "Running this folder cleans the user data base. All records get deleted. Process is done in a loop by sequentially invoking the DEL request if any users are still present in the list retrieved by the GET \"Get list of users\" which is saved to an environment variable."
+						},
+						{
+							"name": "Listing All",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/users",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users"
+									]
+								}
+							},
+							"response": []
+						}
+					],
+					"description": "Auxillary tests for print debugging and cleaning the environment."
+				},
+				{
+					"name": "Comprehensive Single User Scenario",
+					"item": [
+						{
+							"name": "Add Correctly",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status code is 201\", function () {\r",
+											"    pm.response.to.have.status(201);\r",
+											"});\r",
+											"\r",
+											"\r",
+											"let response = pm.response.json();\r",
+											"pm.environment.set(\"createdUserId\", response.id);\r",
+											"\r",
+											"\r",
+											""
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"username\": \"jan_kowalski\",\r\n  \"first_name\": \"Jan\",\r\n  \"last_name\": \"Kowalski\",\r\n  \"email\": \"jan.kowalski@example.com\",\r\n  \"password\": \"SuperSecret123\"\r\n}\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/users/",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Add Duplicate",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status code is 400\", function () {\r",
+											"    pm.response.to.have.status(400);\r",
+											"});"
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"username\": \"jan_kowalski\",\r\n  \"first_name\": \"Jan\",\r\n  \"last_name\": \"Kowalski\",\r\n  \"email\": \"jan.kowalski@example.com\",\r\n  \"password\": \"SuperSecret123\"\r\n}\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/users/",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Add Incorrect Username",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status code is 400\", function () {\r",
+											"    pm.response.to.have.status(400);\r",
+											"});\r",
+											"// exclamation mark in username -> error!"
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"username\": \"jan_kowalski!\",\r\n  \"first_name\": \"Jan\",\r\n  \"last_name\": \"Kowalski\",\r\n  \"email\": \"jan.kowalski@example.com\",\r\n  \"password\": \"SuperSecret123\"\r\n}\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/users/",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Add Missing Payload",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status code is 400\", function () {\r",
+											"    pm.response.to.have.status(400);\r",
+											"});\r",
+											"// no email -> error!"
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"username\": \"jan_kowalski!\",\r\n  \"first_name\": \"Jan\",\r\n  \"last_name\": \"Kowalski\",\r\n  \"password\": \"SuperSecret123\"\r\n}\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/users/",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Validate User Data",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"\r",
+											"let userData = pm.response.json()[0];\r",
+											"\r",
+											"pm.test(\"Username matches\", function () {\r",
+											"    pm.expect(userData.username).to.eql(\"jan_kowalski\");\r",
+											"});\r",
+											"pm.test(\"Email matches\", function () {\r",
+											"    pm.expect(userData.email).to.eql(\"jan.kowalski@example.com\");\r",
+											"});\r",
+											""
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/users",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Modify Data",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status code is 200\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"username\": \"jan_kowalski1\",\r\n  \"email\": \"jan.kowalski4@example.com\"\r\n}\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/users/{{createdUserId}}/",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										"{{createdUserId}}",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Validate Modified Data",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"\r",
+											"let userData = pm.response.json()[0];\r",
+											"\r",
+											"pm.test(\"Username matches\", function () {\r",
+											"    pm.expect(userData.username).to.eql(\"jan_kowalski1\");\r",
+											"});\r",
+											"pm.test(\"Email matches\", function () {\r",
+											"    pm.expect(userData.email).to.eql(\"jan.kowalski4@example.com\");\r",
+											"});\r",
+											""
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/users/",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Correctly",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status code is 204\", function () {\r",
+											"    pm.response.to.have.status(204);\r",
+											"});\r",
+											""
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/users/{{createdUserId}}/",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										"{{createdUserId}}",
+										""
+									]
+								}
+							},
+							"response": []
+						}
+					],
+					"description": "Adding a user then trying to add a duplicate with the same username. Then trying to add another user with an incorrect username (forbidden sign). Afterwards the data of the formerly added user gets validated (checked for any modifications). The user's data gets modified and then validated once again (did the DB retain the changes?). Finally the user gets removed from the database (cleanup)"
+				}
+			]
+		},
+		{
+			"name": "Inventory Items",
+			"item": []
+		},
+		{
+			"name": "Inventories",
+			"item": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}
