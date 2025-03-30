@@ -20,6 +20,104 @@ from .serializers import (
     InventoryItemSerializer
 )
 
+from django.conf import settings
+from django.shortcuts import redirect
+from rest_framework.views import APIView, View
+from rest_framework.response import Response
+from requests_oauthlib import OAuth1Session
+from django.http import HttpResponse
+
+
+USOS_REQUEST_TOKEN_URL = 'https://apps.usos.pw.edu.pl/services/oauth/request_token'
+USOS_AUTHORIZE_URL = 'https://apps.usos.pw.edu.pl/services/oauth/authorize'
+USOS_ACCESS_TOKEN_URL = 'https://apps.usos.pw.edu.pl/services/oauth/access_token'
+
+class OAuthLoginView(APIView):
+    """
+    Initiates the USOS OAuth process.
+    Creates an OAuth1 session, obtains a request token, stores it in the session,
+    and then redirects the user to USOS's authorization URL.
+    """
+    def get(self, request, format=None):
+        consumer_key = settings.USOS_CONSUMER_KEY
+        consumer_secret = settings.USOS_CONSUMER_SECRET
+
+        # Build the absolute callback URL dynamically.
+        callback_uri = request.build_absolute_uri('/oauth/callback/')
+        oauth = OAuth1Session(consumer_key, client_secret=consumer_secret, callback_uri=callback_uri)
+        
+        # Step 1: Obtain an unauthorized Request Token.
+        fetch_response = oauth.fetch_request_token(USOS_REQUEST_TOKEN_URL)
+        request.session['resource_owner_key'] = fetch_response.get('oauth_token')
+        request.session['resource_owner_secret'] = fetch_response.get('oauth_token_secret')
+        
+        # Step 2: Redirect the user to USOS's authorization URL.
+        authorization_url = oauth.authorization_url(USOS_AUTHORIZE_URL, interactivity='minimal')
+        return redirect(authorization_url)
+
+class OAuthCallbackView(APIView):
+    """
+    Handles the callback from USOS.
+    Retrieves the oauth_verifier and the request token from the session,
+    exchanges them for an access token, and then (optionally) logs in or creates a Django user.
+    For demonstration purposes, this view returns the access token details.
+    """
+    def get(self, request, format=None):
+        consumer_key = settings.USOS_CONSUMER_KEY
+        consumer_secret = settings.USOS_CONSUMER_SECRET
+        
+        resource_owner_key = request.session.get('resource_owner_key')
+        resource_owner_secret = request.session.get('resource_owner_secret')
+        oauth_verifier = request.query_params.get('oauth_verifier')
+        
+        if not resource_owner_key or not resource_owner_secret or not oauth_verifier:
+            return Response({'error': 'Missing token or verifier in session or callback parameters.'}, status=400)
+        
+        # Create a new OAuth1 session with the verifier to get the access token.
+        oauth = OAuth1Session(
+            consumer_key,
+            client_secret=consumer_secret,
+            resource_owner_key=resource_owner_key,
+            resource_owner_secret=resource_owner_secret,
+            verifier=oauth_verifier
+        )
+        oauth_tokens = oauth.fetch_access_token(USOS_ACCESS_TOKEN_URL)
+        access_token = oauth_tokens.get('oauth_token')
+        access_token_secret = oauth_tokens.get('oauth_token_secret')
+        
+        # Here, you might store the tokens in the user's session or in your database
+        
+        # Its so the user doesn't have to log in every time they access our app's API - JK
+        # For now we store them in the session - JK
+        request.session['access_token'] = access_token
+        request.session['access_token_secret'] = access_token_secret
+
+        # For demonstration we access the USOS API to get basic user data (name, surname) - JK
+        user_endpoint = 'https://apps.usos.pw.edu.pl/services/users/user'
+        params = {'fields': 'id|first_name|last_name'}
+        response = oauth.get(user_endpoint, params=params)
+        if response.status_code == 200:
+            user_info = response.json()
+        else:
+            user_info = {"error": "Unable to retrieve user info."}
+        
+        # Save the retrieved info in the session.
+        request.session['user_info'] = user_info
+        # End of demonstration code - JK
+        
+        # Here you would normally create or update a Django user account 
+        # ...
+
+        # For now, we just redirect to the future dashboard - JK
+        return redirect('/dashboard/')
+    
+class DashboardView(View):
+    def get(self, request, *args, **kwargs):
+        # Retrieve the stored user information from the session.
+        user_info = request.session.get('user_info', {})
+        # Display the info as a simple HTML response.
+        return HttpResponse(f"<h1>Dashboard</h1><p>User Info: {user_info}</p>")
+    
 
 class UserViewSet(viewsets.ModelViewSet):
     """
