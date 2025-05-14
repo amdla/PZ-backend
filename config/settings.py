@@ -9,6 +9,8 @@ env = environ.Env()
 environ.Env.read_env(env_file=BASE_DIR / '.env')
 
 SECRET_KEY = env("SECRET_KEY")
+USOS_CONSUMER_KEY = '' # for local testing hard code the keys here
+USOS_CONSUMER_SECRET = ''
 
 DEBUG = True
 
