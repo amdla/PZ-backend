@@ -11,7 +11,11 @@ These viewsets use Django REST Framework's `ModelViewSet` to automatically provi
 """
 
 from django.contrib.auth.models import User
+from django.contrib.auth import login
 from rest_framework import viewsets
+from django.shortcuts import render
+from django.utils.decorators import method_decorator
+from django.contrib.auth.decorators import login_required, user_passes_test 
 
 from .models import Inventory, InventoryItem
 from .serializers import (
@@ -26,8 +30,20 @@ from rest_framework.views import APIView, View
 from rest_framework.response import Response
 from requests_oauthlib import OAuth1Session
 from django.http import HttpResponse
+import logging
 
+logger = logging.getLogger("django.main.logger")
 
+def permission_denied_view(request):
+    """Site rendering the information about no required permissions."""
+    return render(request, 'api/permission_denied.html', status=403)
+
+def is_user_staff(user): 
+    #return user.is_staff
+    return True # For testing purposes, always return True 
+    # This is only for VIEWS, API permissions are handled in api/permissions.py
+
+PERMISSION_DENIED_REDIRECT_URL = '/permission-denied/'
 USOS_REQUEST_TOKEN_URL = 'https://apps.usos.pw.edu.pl/services/oauth/request_token'
 USOS_AUTHORIZE_URL = 'https://apps.usos.pw.edu.pl/services/oauth/authorize'
 USOS_ACCESS_TOKEN_URL = 'https://apps.usos.pw.edu.pl/services/oauth/access_token'
@@ -59,7 +75,7 @@ class OAuthCallbackView(APIView):
     """
     Handles the callback from USOS.
     Retrieves the oauth_verifier and the request token from the session,
-    exchanges them for an access token, and then (optionally) logs in or creates a Django user.
+    exchanges them for an access token, and then logs in or creates a Django user.
     For demonstration purposes, this view returns the access token details.
     """
     def get(self, request, format=None):
@@ -71,47 +87,149 @@ class OAuthCallbackView(APIView):
         oauth_verifier = request.query_params.get('oauth_verifier')
         
         if not resource_owner_key or not resource_owner_secret or not oauth_verifier:
+            logger.warning("OAuthCallbackView: Missing token or verifier in session or callback parameters.")
             return Response({'error': 'Missing token or verifier in session or callback parameters.'}, status=400)
         
         # Create a new OAuth1 session with the verifier to get the access token.
-        oauth = OAuth1Session(
+        oauth_usos_session = OAuth1Session(
             consumer_key,
             client_secret=consumer_secret,
             resource_owner_key=resource_owner_key,
             resource_owner_secret=resource_owner_secret,
             verifier=oauth_verifier
         )
-        oauth_tokens = oauth.fetch_access_token(USOS_ACCESS_TOKEN_URL)
+        
+        try:
+            oauth_tokens = oauth_usos_session.fetch_access_token(USOS_ACCESS_TOKEN_URL)
+        except Exception as e:
+            logger.error(f"OAuthCallbackView: Failed to fetch access token from USOS: {e}", exc_info=True)
+            return Response({'error': f'Failed to fetch access token: {str(e)}'}, status=500)
+            
         access_token = oauth_tokens.get('oauth_token')
         access_token_secret = oauth_tokens.get('oauth_token_secret')
+
+        if not access_token or not access_token_secret:
+            logger.error("OAuthCallbackView: Failed to obtain access token or secret from USOS response.")
+            return Response({'error': 'Failed to obtain access token from USOS.'}, status=500)
         
-        # Here, you might store the tokens in the user's session or in your database
         
-        # Its so the user doesn't have to log in every time they access our app's API - JK
-        # For now we store them in the session - JK
+        # Also stored in the session for later ease of use.
+        # If not required those two lines can be later removed.
         request.session['access_token'] = access_token
         request.session['access_token_secret'] = access_token_secret
 
-        # For demonstration we access the USOS API to get basic user data (name, surname) - JK
-        user_endpoint = 'https://apps.usos.pw.edu.pl/services/users/user'
-        params = {'fields': 'id|first_name|last_name'}
-        response = oauth.get(user_endpoint, params=params)
-        if response.status_code == 200:
+        user_api_client = OAuth1Session( # New session with the received access token
+            consumer_key,
+            client_secret=consumer_secret,
+            resource_owner_key=access_token,
+            resource_owner_secret=access_token_secret
+        )
+        
+        user_endpoint = 'https://apps.usos.pw.edu.pl/services/users/user' # USOS API endpoint for user info
+        
+        # Fields to be retrieved from USOS API to fill the Django User model.
+        usos_fields = [
+            'id', 'first_name', 'last_name', 'student_status', 'staff_status', 'email', 'has_email', 'profile_url'
+        ]
+        params = {'fields': '|'.join(usos_fields)}
+        
+        try:
+            response = user_api_client.get(user_endpoint, params=params)
+            response.raise_for_status()
             user_info = response.json()
-        else:
-            user_info = {"error": "Unable to retrieve user info."}
+        except Exception as e:
+            logger.error(f"OAuthCallbackView: Unable to retrieve user info from USOS: {e}", exc_info=True)
+            request.session['user_info'] = {"error": f"Unable to retrieve user info from USOS: {str(e)}"}
+
+            error_detail = {"error": "Unable to retrieve user info from USOS."}
+            try:
+                error_detail['usos_response'] = response.json()
+            except:
+                error_detail['usos_response_text'] = response.text
+            return Response(error_detail, status=response.status_code if hasattr(response, 'status_code') else 500)
         
-        # Save the retrieved info in the session.
+        # Save the retrieved info in the session for other views to use.
         request.session['user_info'] = user_info
-        # End of demonstration code - JK
         
-        # Here you would normally create or update a Django user account 
-        # ...
+        # Creating or updating the Django user.
+        # We need to check if the user already exists in our database.
+        usos_id = user_info.get('id')
+
+        # Making sure the usos response contains the ID (is not corrupted or empty?)
+        if not usos_id:
+            logger.error("OAuthCallbackView: USOS ID not found in user_info response.")
+            return Response({'error': 'Critical: USOS user ID not found in API response.'}, status=500)
+
+        # Creating a unique username based on the USOS ID.
+        username = f"usos_{str(usos_id)}" 
+
+        usos_staff_status = user_info.get('staff_status') # Getting staff status from USOS
+        # 0 - student, 1 - worker but not teacher, 2 - teacher
+
+        is_staff_member = False
+        if usos_staff_status == 1 or usos_staff_status == 2:
+            is_staff_member = True
+
+        user_defaults = {
+            'first_name': user_info.get('first_name', ''),
+            'last_name': user_info.get('last_name', ''),
+            'email': user_info.get('email', ''), 
+            'is_active': True, # Instant activation
+            'is_staff': is_staff_member, 
+            # 'is_superuser' False by default
+            # 'last_login' is set automatically by Django when the user logs in
+            # 'date_joined' is set automatically by Django when the user is created
+        }
+
+
+        # Creating / Modifying the user in the database
+        try:
+            user, created = User.objects.get_or_create(
+                username=username,
+                defaults=user_defaults
+            )
+
+            if created:
+                # unusable password since Authentication is externally done via OAuth
+                user.set_unusable_password() 
+                user.save()
+                logger.info(f"OAuthCallbackView: Created new user: {username}")
+            else:
+                # User already exists, update the fields if they differ
+                update_fields_list = []
+                for field_name, value in user_defaults.items():
+                    if getattr(user, field_name) != value:
+                        setattr(user, field_name, value)
+                        update_fields_list.append(field_name)
+                
+                if not user.is_active: # Make user active if not already
+                    user.is_active = True
+                    update_fields_list.append('is_active')
+
+                if update_fields_list: # Save the user only if there are changes
+                    user.save(update_fields=update_fields_list)
+                    logger.info(f"OAuthCallbackView: Updated existing user: {username}, fields: {update_fields_list}")
+                else:
+                    logger.info(f"OAuthCallbackView: User {username} already up-to-date.")
+
+            # Log the user in
+            login(request, user)
+            logger.info(f"OAuthCallbackView: User {username} logged in successfully.")
+
+        except Exception as e:
+            logger.error(f"OAuthCallbackView: Database error during user provisioning for {username}: {e}", exc_info=True)
+            return Response({'error': f'Database error during user provisioning: {str(e)}'}, status=500)
 
         # For now, we just redirect to the future dashboard - JK
         return redirect('/dashboard/')
     
+
+
+
+@method_decorator(login_required, name='dispatch')
+@method_decorator(user_passes_test(is_user_staff, login_url=PERMISSION_DENIED_REDIRECT_URL), name='dispatch')
 class DashboardView(View):
+
     def get(self, request, *args, **kwargs):
         # Retrieve the stored user information from the session.
         user_info = request.session.get('user_info', {})
@@ -119,6 +237,8 @@ class DashboardView(View):
         return HttpResponse(f"<h1>Dashboard</h1><p>User Info: {user_info}</p>")
     
 
+@method_decorator(login_required, name='dispatch')
+@method_decorator(user_passes_test(is_user_staff, login_url=PERMISSION_DENIED_REDIRECT_URL), name='dispatch')
 class UserViewSet(viewsets.ModelViewSet):
     """
     Provides CRUD (Create, Read, Update, Delete) endpoints for the Django `User` model.
@@ -141,7 +261,8 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
-
+@method_decorator(login_required, name='dispatch')
+@method_decorator(user_passes_test(is_user_staff, login_url=PERMISSION_DENIED_REDIRECT_URL), name='dispatch')
 class InventoryViewSet(viewsets.ModelViewSet):
     """
     Provides CRUD (Create, Read, Update, Delete) endpoints for the `Inventory` model,
@@ -186,7 +307,8 @@ class InventoryViewSet(viewsets.ModelViewSet):
 
         serializer.save(user=self.request.user)
 
-
+@method_decorator(login_required, name='dispatch')
+@method_decorator(user_passes_test(is_user_staff, login_url=PERMISSION_DENIED_REDIRECT_URL), name='dispatch')
 class InventoryItemViewSet(viewsets.ModelViewSet):
     """
     Provides CRUD (Create, Read, Update, Delete) endpoints for the `InventoryItem` model,
@@ -232,3 +354,5 @@ class InventoryItemViewSet(viewsets.ModelViewSet):
         if inventory_id is not None:
             queryset = queryset.filter(inventory__id=inventory_id)
         return queryset
+
+
