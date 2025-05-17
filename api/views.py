@@ -11,11 +11,16 @@ These viewsets use Django REST Framework's `ModelViewSet` to automatically provi
 """
 
 from django.contrib.auth.models import User
+from django.views.decorators.cache import never_cache
 from django.contrib.auth import login
+from django.contrib.auth import logout
 from rest_framework import viewsets
 from django.shortcuts import render
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required, user_passes_test 
+from config.settings import LOGIN_REDIRECT_URL
+from config.settings import LOGIN_URL
+
 
 from .models import Inventory, InventoryItem
 from .serializers import (
@@ -173,7 +178,7 @@ class OAuthCallbackView(APIView):
         user_defaults = {
             'first_name': user_info.get('first_name', ''),
             'last_name': user_info.get('last_name', ''),
-            'email': user_info.get('email', ''), 
+            'email': user_info.get('email') or '',
             'is_active': True, # Instant activation
             'is_staff': is_staff_member, 
             # 'is_superuser' False by default
@@ -221,11 +226,29 @@ class OAuthCallbackView(APIView):
             return Response({'error': f'Database error during user provisioning: {str(e)}'}, status=500)
 
         # For now, we just redirect to the future dashboard - JK
-        return redirect('/dashboard/')
+        return redirect(LOGIN_REDIRECT_URL)
     
 
+@method_decorator(login_required, name='dispatch')
+@method_decorator(user_passes_test(is_user_staff, login_url=PERMISSION_DENIED_REDIRECT_URL), name='dispatch')
+class LogoutView(APIView):
+    """
+    Handles user logout by clearing session data and logging out the user.
+    """
+    def perform_logout(self, request):
+        request.session.flush()  
+        logout(request)         
+        return Response({"message": "Successfully logged out."}, status=200)
 
+    def post(self, request, format=None): # leave this one for after merge
+        return self.perform_logout(request)
 
+    def get(self, request, format=None): # Dodana obsługa GET
+        # Not recommended, added just for backend testing - when connecting with frontend REMOVE
+        # Send post request to logout instead 
+        return self.perform_logout(request)
+
+@method_decorator(never_cache, name='dispatch') # TEN 
 @method_decorator(login_required, name='dispatch')
 @method_decorator(user_passes_test(is_user_staff, login_url=PERMISSION_DENIED_REDIRECT_URL), name='dispatch')
 class DashboardView(View):
