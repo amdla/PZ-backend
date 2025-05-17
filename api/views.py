@@ -73,7 +73,7 @@ class OAuthLoginView(APIView):
         request.session['resource_owner_secret'] = fetch_response.get('oauth_token_secret')
         
         # Step 2: Redirect the user to USOS's authorization URL.
-        authorization_url = oauth.authorization_url(USOS_AUTHORIZE_URL, interactivity='minimal')
+        authorization_url = oauth.authorization_url(USOS_AUTHORIZE_URL, interactivity='confirm_user') # zmiana na confirm_user -> da sie wylogowac ale dziwne
         return redirect(authorization_url)
 
 class OAuthCallbackView(APIView):
@@ -230,7 +230,6 @@ class OAuthCallbackView(APIView):
     
 
 @method_decorator(login_required, name='dispatch')
-@method_decorator(user_passes_test(is_user_staff, login_url=PERMISSION_DENIED_REDIRECT_URL), name='dispatch')
 class LogoutView(APIView):
     """
     Handles user logout by clearing session data and logging out the user.
