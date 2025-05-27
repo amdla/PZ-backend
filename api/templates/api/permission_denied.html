@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Permission Denied</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding-top: 50px; }
+        h1 { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <h1>Permission Denied (Error 403)</h1>
+    <p>We are sorry, but you do not have the necessary permissions to view this page.</p>
+    <p><a href="/">Return to the homepage</a></p>
+    {% if user.is_authenticated %}
+        <p>You are logged in as: {{ user.username }}</p>
+    {% endif %}
+</body>
+</html>
