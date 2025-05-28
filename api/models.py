@@ -83,7 +83,7 @@ class InventoryItem(models.Model):
     quantity = models.IntegerField()  # "Ilość"
     initial_value = models.DecimalField(max_digits=10, decimal_places=2)  # Wartość
     lastInventoryRoom = models.CharField(max_length=50)  # Poprzednie pomieszczenie
-    currentRoom = models.CharField(max_length=50)  # Pomieszczenie
+    currentRoom = models.CharField(max_length=50,null=True,blank=True)  # Pomieszczenie
     
     def __str__(self):
         """
