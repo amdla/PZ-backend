@@ -1,7 +1,7 @@
 from pathlib import Path
 
-import environ
 import dj_database_url
+import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -9,13 +9,12 @@ env = environ.Env()
 environ.Env.read_env(env_file=BASE_DIR / '.env')
 
 SECRET_KEY = env("SECRET_KEY")
-USOS_CONSUMER_KEY = env('Consumer_Key') 
+USOS_CONSUMER_KEY = env('Consumer_Key')
 USOS_CONSUMER_SECRET = env('Consumer_Secret')
 
 DEBUG = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
 
 LOGIN_URL = '/oauth/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
@@ -41,7 +40,6 @@ TEMPLATES = [
     },
 ]
 
-
 # Applications
 INSTALLED_APPS = [
     'django.contrib.auth',
@@ -49,6 +47,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'rest_framework',
+    'corsheaders',
     'api',
 ]
 
@@ -56,6 +55,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -72,3 +72,22 @@ ALLOWED_HOSTS = ['0.0.0.0', 'localhost']
 DATABASES = {
     'default': dj_database_url.config(default=env('DATABASE_URL'))
 }
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+ALLOWED_REDIRECT_URIS = [
+    'http://localhost:3000/',  # React
+    'http://127.0.0.1:3000/',  # React
+    # 'https://twoja-web-aplikacja.pl/', # Adres produkcyjny
+    'moja-apka://oauth/callback',  # Mobile scheme
+]
