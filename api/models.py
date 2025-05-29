@@ -65,6 +65,7 @@ class InventoryItem(models.Model):
         - `initial_value` (decimal): Initial monetary value of the item.
         - `lastInventoryRoom` (str): Room where the item was previously stored.
         - `currentRoom` (str): Room where the item is stored at the moment.
+        - `scanned` (boolean): Information whether the item has been scanned yet.
 
     Relationships:
         - Each item is linked to an inventory via `ForeignKey(Inventory)`.
@@ -84,6 +85,7 @@ class InventoryItem(models.Model):
     initial_value = models.DecimalField(max_digits=10, decimal_places=2)  # Wartość
     lastInventoryRoom = models.CharField(max_length=50)  # Poprzednie pomieszczenie
     currentRoom = models.CharField(max_length=50,null=True,blank=True)  # Pomieszczenie
+    scanned = models.BooleanField(null=True,blank=True)
     
     def __str__(self):
         """
@@ -102,4 +104,5 @@ class InventoryItem(models.Model):
                 f"Quantity: {self.quantity}, "
                 f"Initial value: {self.initial_value}, "
                 f"Last Inv room: {self.lastInventoryRoom}"
-                f"Current room: {self.currentRoom}")
+                f"Current room: {self.currentRoom}"
+                f"Scanned : {self.scanned}")
