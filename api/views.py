@@ -11,15 +11,12 @@ These viewsets use Django REST Framework's `ModelViewSet` to automatically provi
 """
 
 from django.contrib.auth.models import User
-from django.views.decorators.cache import never_cache
 from django.contrib.auth import login
 from django.contrib.auth import logout
 from rest_framework import viewsets
 from django.shortcuts import render
-from django.utils.decorators import method_decorator
-from django.contrib.auth.decorators import login_required, user_passes_test 
-from config.settings import LOGIN_REDIRECT_URL
-from config.settings import LOGIN_URL
+from rest_framework.permissions import IsAuthenticated
+from .permissions import IsStaffUser
 
 
 from .models import Inventory, InventoryItem
@@ -52,6 +49,18 @@ PERMISSION_DENIED_REDIRECT_URL = '/permission-denied/'
 USOS_REQUEST_TOKEN_URL = 'https://apps.usos.pw.edu.pl/services/oauth/request_token'
 USOS_AUTHORIZE_URL = 'https://apps.usos.pw.edu.pl/services/oauth/authorize'
 USOS_ACCESS_TOKEN_URL = 'https://apps.usos.pw.edu.pl/services/oauth/access_token'
+
+class UserStatusView(APIView):
+    """
+    An endpoint to check if a user is currently authenticated.
+    If authenticated, returns the user's data.
+    If not, the permission class will return a 401 Unauthorized.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
 
 class OAuthLoginView(APIView):
     """
@@ -221,19 +230,22 @@ class OAuthCallbackView(APIView):
             login(request, user)
             logger.info(f"OAuthCallbackView: User {username} logged in successfully.")
 
+            # Serialize the user data to return to the frontend
+            serializer = UserSerializer(user)
+            return Response(serializer.data, status=200)
+
         except Exception as e:
             logger.error(f"OAuthCallbackView: Database error during user provisioning for {username}: {e}", exc_info=True)
+            # Return a proper error response
             return Response({'error': f'Database error during user provisioning: {str(e)}'}, status=500)
-
-        # For now, we just redirect to the future dashboard - JK
-        return redirect(LOGIN_REDIRECT_URL)
     
 
-@method_decorator(login_required, name='dispatch')
 class LogoutView(APIView):
     """
     Handles user logout by clearing session data and logging out the user.
     """
+    permission_classes = [IsAuthenticated]
+
     def perform_logout(self, request):
         request.session.flush()  
         logout(request)         
@@ -246,21 +258,8 @@ class LogoutView(APIView):
         # Not recommended, added just for backend testing - when connecting with frontend REMOVE
         # Send post request to logout instead 
         return self.perform_logout(request)
-
-@method_decorator(never_cache, name='dispatch') # TEN 
-@method_decorator(login_required, name='dispatch')
-@method_decorator(user_passes_test(is_user_staff, login_url=PERMISSION_DENIED_REDIRECT_URL), name='dispatch')
-class DashboardView(View):
-
-    def get(self, request, *args, **kwargs):
-        # Retrieve the stored user information from the session.
-        user_info = request.session.get('user_info', {})
-        # Display the info as a simple HTML response.
-        return HttpResponse(f"<h1>Dashboard</h1><p>User Info: {user_info}</p>")
     
 
-@method_decorator(login_required, name='dispatch')
-@method_decorator(user_passes_test(is_user_staff, login_url=PERMISSION_DENIED_REDIRECT_URL), name='dispatch')
 class UserViewSet(viewsets.ModelViewSet):
     """
     Provides CRUD (Create, Read, Update, Delete) endpoints for the Django `User` model.
@@ -280,11 +279,10 @@ class UserViewSet(viewsets.ModelViewSet):
         - Update a user (PUT/PATCH):  `/users/{id}/`
         - Delete a user (DELETE):     `/users/{id}/`
     """
+    permission_classes = [IsAuthenticated, IsStaffUser]
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
-@method_decorator(login_required, name='dispatch')
-@method_decorator(user_passes_test(is_user_staff, login_url=PERMISSION_DENIED_REDIRECT_URL), name='dispatch')
 class InventoryViewSet(viewsets.ModelViewSet):
     """
     Provides CRUD (Create, Read, Update, Delete) endpoints for the `Inventory` model,
@@ -308,6 +306,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
         - Update an inventory (PUT/PATCH):  `/inventories/{id}/`
         - Delete an inventory (DELETE):     `/inventories/{id}/`
     """
+    permission_classes = [IsAuthenticated, IsStaffUser]
     serializer_class = InventorySerializer
     queryset = Inventory.objects.all()
 
@@ -329,8 +328,6 @@ class InventoryViewSet(viewsets.ModelViewSet):
 
         serializer.save(user=self.request.user)
 
-@method_decorator(login_required, name='dispatch')
-@method_decorator(user_passes_test(is_user_staff, login_url=PERMISSION_DENIED_REDIRECT_URL), name='dispatch')
 class InventoryItemViewSet(viewsets.ModelViewSet):
     """
     Provides CRUD (Create, Read, Update, Delete) endpoints for the `InventoryItem` model,
@@ -363,6 +360,7 @@ class InventoryItemViewSet(viewsets.ModelViewSet):
         - Update an item (PUT/PATCH):       `/items/{id}/`
         - Delete an item (DELETE):          `/items/{id}/`
     """
+    permission_classes = [IsAuthenticated, IsStaffUser]
     serializer_class = InventoryItemSerializer
     queryset = InventoryItem.objects.all()
 
