@@ -18,6 +18,7 @@ from django.contrib.auth.models import User
 from django.shortcuts import redirect, render
 from requests_oauthlib import OAuth1Session
 from rest_framework import viewsets, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -340,9 +341,11 @@ class InventoryViewSet(viewsets.ModelViewSet):
 
 class InventoryItemViewSet(viewsets.ModelViewSet):
     """
-    Provides CRUD (Create, Read, Update, Delete) endpoints for the `InventoryItem` model,
-    with optional filtering by `inventory_id`. For example:
+    Provides CRUD (Create, Read, Update, Delete) endpoints for the `InventoryItem` model.
+    Users can only access items from their own inventories.
+    Optional filtering by `inventory_id` (must belong to the authenticated user). For example:
         GET /items/?inventory_id=10
+
     returns only items belonging to the inventory with ID=10.
 
     Auto-generated Fields:
@@ -379,10 +382,16 @@ class InventoryItemViewSet(viewsets.ModelViewSet):
         Returns a filtered queryset if `inventory_id` is present in the query parameters.
         Otherwise, returns all InventoryItem objects.
         """
-        queryset = super().get_queryset()
+        if not self.request.user.is_authenticated:
+            return InventoryItem.objects.none()
+
+        # Base queryset: only items from user's own inventories
+        queryset = InventoryItem.objects.filter(inventory__user=self.request.user)
         inventory_id = self.request.query_params.get('inventory_id')
+
         if inventory_id is not None:
             queryset = queryset.filter(inventory__id=inventory_id)
+
         return queryset
 
     def create(self, request, *args, **kwargs):
@@ -391,6 +400,8 @@ class InventoryItemViewSet(viewsets.ModelViewSet):
 
         If a list of objects is provided, performs bulk creation.
         Otherwise, falls back to the default single-object creation behavior.
+
+        Items can only be created in inventories owned by the current user.
         """
         data = request.data
 
@@ -400,15 +411,33 @@ class InventoryItemViewSet(viewsets.ModelViewSet):
 
             serializer = self.get_serializer(data=data, many=True)
             serializer.is_valid(raise_exception=True)
+
+            # Validate that all inventories belong to the current user
+            for item_data in serializer.validated_data:
+                inventory = item_data.get('inventory')
+                if inventory and inventory.user != request.user:
+                    return Response(
+                        {'error': f'Cannot create item in inventory {inventory.id}: Permission denied'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+
             self.perform_bulk_create(serializer)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
             return super().create(request, *args, **kwargs)
 
+    def perform_create(self, serializer):
+        """
+        Validates that the inventory belongs to the current user before creating the item.
+        """
+        inventory = serializer.validated_data.get('inventory')
+        if inventory and inventory.user != self.request.user:
+            raise PermissionDenied('Cannot create item in inventory that does not belong to you')
+        serializer.save()
+
     def perform_bulk_create(self, serializer):
         """
         Saves multiple InventoryItem objects using the validated serializer.
-
-            This method is called internally by `create()` when a list of items is posted.
+        This method is called internally by `create()` when a list of items is posted.
         """
         serializer.save()
