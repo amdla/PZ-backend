@@ -10,45 +10,45 @@ These viewsets use Django REST Framework's `ModelViewSet` to automatically provi
 `update`, and `destroy` actions. Filtering is implemented by overriding `get_queryset`.
 """
 
-from django.contrib.auth.models import User
-from django.contrib.auth import login
-from django.contrib.auth import logout
-from rest_framework import viewsets
-from django.shortcuts import render
-from rest_framework.permissions import IsAuthenticated
-from .permissions import IsStaffUser
+import logging
 
+from django.conf import settings
+from django.contrib.auth import login, logout
+from django.contrib.auth.models import User
+from django.shortcuts import redirect, render
+from requests_oauthlib import OAuth1Session
+from rest_framework import viewsets, status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import Inventory, InventoryItem
+from .permissions import IsStaffUser
 from .serializers import (
     UserSerializer,
     InventorySerializer,
     InventoryItemSerializer
 )
 
-from django.conf import settings
-from django.shortcuts import redirect
-from rest_framework.views import APIView, View
-from rest_framework.response import Response
-from requests_oauthlib import OAuth1Session
-from django.http import HttpResponse
-import logging
-
 logger = logging.getLogger("django.main.logger")
+
 
 def permission_denied_view(request):
     """Site rendering the information about no required permissions."""
     return render(request, 'api/permission_denied.html', status=403)
 
-def is_user_staff(user): 
-    #return user.is_staff
-    return True # For testing purposes, always return True 
+
+def is_user_staff(user):
+    # return user.is_staff
+    return True  # For testing purposes, always return True
     # This is only for VIEWS, API permissions are handled in api/permissions.py
+
 
 PERMISSION_DENIED_REDIRECT_URL = '/permission-denied/'
 USOS_REQUEST_TOKEN_URL = 'https://apps.usos.pw.edu.pl/services/oauth/request_token'
 USOS_AUTHORIZE_URL = 'https://apps.usos.pw.edu.pl/services/oauth/authorize'
 USOS_ACCESS_TOKEN_URL = 'https://apps.usos.pw.edu.pl/services/oauth/access_token'
+
 
 class UserStatusView(APIView):
     """
@@ -62,12 +62,14 @@ class UserStatusView(APIView):
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
 
+
 class OAuthLoginView(APIView):
     """
     Initiates the USOS OAuth process.
     Creates an OAuth1 session, obtains a request token, stores it in the session,
     and then redirects the user to USOS's authorization URL.
     """
+
     def get(self, request, format=None):
         consumer_key = settings.USOS_CONSUMER_KEY
         consumer_secret = settings.USOS_CONSUMER_SECRET
@@ -75,15 +77,17 @@ class OAuthLoginView(APIView):
         # Build the absolute callback URL dynamically.
         callback_uri = request.build_absolute_uri('/oauth/callback/')
         oauth = OAuth1Session(consumer_key, client_secret=consumer_secret, callback_uri=callback_uri)
-        
+
         # Step 1: Obtain an unauthorized Request Token.
         fetch_response = oauth.fetch_request_token(USOS_REQUEST_TOKEN_URL)
         request.session['resource_owner_key'] = fetch_response.get('oauth_token')
         request.session['resource_owner_secret'] = fetch_response.get('oauth_token_secret')
-        
+
         # Step 2: Redirect the user to USOS's authorization URL.
-        authorization_url = oauth.authorization_url(USOS_AUTHORIZE_URL, interactivity='confirm_user') # zmiana na confirm_user -> da sie wylogowac ale dziwne
+        # zmiana na confirm_user -> da sie wylogowac ale dziwne
+        authorization_url = oauth.authorization_url(USOS_AUTHORIZE_URL, interactivity='confirm_user')
         return redirect(authorization_url)
+
 
 class OAuthCallbackView(APIView):
     """
@@ -92,18 +96,19 @@ class OAuthCallbackView(APIView):
     exchanges them for an access token, and then logs in or creates a Django user.
     For demonstration purposes, this view returns the access token details.
     """
+
     def get(self, request, format=None):
         consumer_key = settings.USOS_CONSUMER_KEY
         consumer_secret = settings.USOS_CONSUMER_SECRET
-        
+
         resource_owner_key = request.session.get('resource_owner_key')
         resource_owner_secret = request.session.get('resource_owner_secret')
         oauth_verifier = request.query_params.get('oauth_verifier')
-        
+
         if not resource_owner_key or not resource_owner_secret or not oauth_verifier:
             logger.warning("OAuthCallbackView: Missing token or verifier in session or callback parameters.")
             return Response({'error': 'Missing token or verifier in session or callback parameters.'}, status=400)
-        
+
         # Create a new OAuth1 session with the verifier to get the access token.
         oauth_usos_session = OAuth1Session(
             consumer_key,
@@ -112,41 +117,40 @@ class OAuthCallbackView(APIView):
             resource_owner_secret=resource_owner_secret,
             verifier=oauth_verifier
         )
-        
+
         try:
             oauth_tokens = oauth_usos_session.fetch_access_token(USOS_ACCESS_TOKEN_URL)
         except Exception as e:
             logger.error(f"OAuthCallbackView: Failed to fetch access token from USOS: {e}", exc_info=True)
             return Response({'error': f'Failed to fetch access token: {str(e)}'}, status=500)
-            
+
         access_token = oauth_tokens.get('oauth_token')
         access_token_secret = oauth_tokens.get('oauth_token_secret')
 
         if not access_token or not access_token_secret:
             logger.error("OAuthCallbackView: Failed to obtain access token or secret from USOS response.")
             return Response({'error': 'Failed to obtain access token from USOS.'}, status=500)
-        
-        
+
         # Also stored in the session for later ease of use.
         # If not required those two lines can be later removed.
         request.session['access_token'] = access_token
         request.session['access_token_secret'] = access_token_secret
 
-        user_api_client = OAuth1Session( # New session with the received access token
+        user_api_client = OAuth1Session(  # New session with the received access token
             consumer_key,
             client_secret=consumer_secret,
             resource_owner_key=access_token,
             resource_owner_secret=access_token_secret
         )
-        
-        user_endpoint = 'https://apps.usos.pw.edu.pl/services/users/user' # USOS API endpoint for user info
-        
+
+        user_endpoint = 'https://apps.usos.pw.edu.pl/services/users/user'  # USOS API endpoint for user info
+
         # Fields to be retrieved from USOS API to fill the Django User model.
         usos_fields = [
             'id', 'first_name', 'last_name', 'student_status', 'staff_status', 'email', 'has_email', 'profile_url'
         ]
         params = {'fields': '|'.join(usos_fields)}
-        
+
         try:
             response = user_api_client.get(user_endpoint, params=params)
             response.raise_for_status()
@@ -161,10 +165,10 @@ class OAuthCallbackView(APIView):
             except:
                 error_detail['usos_response_text'] = response.text
             return Response(error_detail, status=response.status_code if hasattr(response, 'status_code') else 500)
-        
+
         # Save the retrieved info in the session for other views to use.
         request.session['user_info'] = user_info
-        
+
         # Creating or updating the Django user.
         # We need to check if the user already exists in our database.
         usos_id = user_info.get('id')
@@ -175,9 +179,9 @@ class OAuthCallbackView(APIView):
             return Response({'error': 'Critical: USOS user ID not found in API response.'}, status=500)
 
         # Creating a unique username based on the USOS ID.
-        username = f"usos_{str(usos_id)}" 
+        username = f"usos_{str(usos_id)}"
 
-        usos_staff_status = user_info.get('staff_status') # Getting staff status from USOS
+        usos_staff_status = user_info.get('staff_status')  # Getting staff status from USOS
         # 0 - student, 1 - worker but not teacher, 2 - teacher
 
         is_staff_member = False
@@ -188,13 +192,12 @@ class OAuthCallbackView(APIView):
             'first_name': user_info.get('first_name', ''),
             'last_name': user_info.get('last_name', ''),
             'email': user_info.get('email') or '',
-            'is_active': True, # Instant activation
-            'is_staff': is_staff_member, 
+            'is_active': True,  # Instant activation
+            'is_staff': is_staff_member,
             # 'is_superuser' False by default
             # 'last_login' is set automatically by Django when the user logs in
             # 'date_joined' is set automatically by Django when the user is created
         }
-
 
         # Creating / Modifying the user in the database
         try:
@@ -205,7 +208,7 @@ class OAuthCallbackView(APIView):
 
             if created:
                 # unusable password since Authentication is externally done via OAuth
-                user.set_unusable_password() 
+                user.set_unusable_password()
                 user.save()
                 logger.info(f"OAuthCallbackView: Created new user: {username}")
             else:
@@ -215,12 +218,12 @@ class OAuthCallbackView(APIView):
                     if getattr(user, field_name) != value:
                         setattr(user, field_name, value)
                         update_fields_list.append(field_name)
-                
-                if not user.is_active: # Make user active if not already
+
+                if not user.is_active:  # Make user active if not already
                     user.is_active = True
                     update_fields_list.append('is_active')
 
-                if update_fields_list: # Save the user only if there are changes
+                if update_fields_list:  # Save the user only if there are changes
                     user.save(update_fields=update_fields_list)
                     logger.info(f"OAuthCallbackView: Updated existing user: {username}, fields: {update_fields_list}")
                 else:
@@ -235,10 +238,11 @@ class OAuthCallbackView(APIView):
             return Response(serializer.data, status=200)
 
         except Exception as e:
-            logger.error(f"OAuthCallbackView: Database error during user provisioning for {username}: {e}", exc_info=True)
+            logger.error(f"OAuthCallbackView: Database error during user provisioning for {username}: {e}",
+                         exc_info=True)
             # Return a proper error response
             return Response({'error': f'Database error during user provisioning: {str(e)}'}, status=500)
-    
+
 
 class LogoutView(APIView):
     """
@@ -247,18 +251,18 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def perform_logout(self, request):
-        request.session.flush()  
-        logout(request)         
+        request.session.flush()
+        logout(request)
         return Response({"message": "Successfully logged out."}, status=200)
 
-    def post(self, request, format=None): # leave this one for after merge
+    def post(self, request, format=None):
         return self.perform_logout(request)
 
-    def get(self, request, format=None): # Dodana obsługa GET
+    def get(self, request, format=None):
         # Not recommended, added just for backend testing - when connecting with frontend REMOVE
         # Send post request to logout instead 
         return self.perform_logout(request)
-    
+
 
 class UserViewSet(viewsets.ModelViewSet):
     """
@@ -282,6 +286,7 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsStaffUser]
     queryset = User.objects.all()
     serializer_class = UserSerializer
+
 
 class InventoryViewSet(viewsets.ModelViewSet):
     """
@@ -312,13 +317,17 @@ class InventoryViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Returns a filtered queryset if `user_id` is present in the query parameters.
-        Otherwise, returns all Inventory objects.
+        Returns a filtered queryset.
+        Filters by the currently logged-in user if authenticated.
+        If the user is not authenticated, returns an empty queryset.
         """
         queryset = super().get_queryset()
-        user_id = self.request.query_params.get('user_id')
-        if user_id is not None:
-            queryset = queryset.filter(user__id=user_id)
+
+        if self.request.user.is_authenticated:
+            queryset = queryset.filter(user=self.request.user)
+        else:
+            queryset = queryset.none()
+
         return queryset
 
     def perform_create(self, serializer):
@@ -327,6 +336,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
         """
 
         serializer.save(user=self.request.user)
+
 
 class InventoryItemViewSet(viewsets.ModelViewSet):
     """
@@ -375,4 +385,30 @@ class InventoryItemViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(inventory__id=inventory_id)
         return queryset
 
+    def create(self, request, *args, **kwargs):
+        """
+        Handles POST requests for creating InventoryItem objects.
 
+        If a list of objects is provided, performs bulk creation.
+        Otherwise, falls back to the default single-object creation behavior.
+        """
+        data = request.data
+
+        if isinstance(data, list):
+            if not data:  # Handle empty list
+                return Response([], status=status.HTTP_201_CREATED)
+
+            serializer = self.get_serializer(data=data, many=True)
+            serializer.is_valid(raise_exception=True)
+            self.perform_bulk_create(serializer)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return super().create(request, *args, **kwargs)
+
+    def perform_bulk_create(self, serializer):
+        """
+        Saves multiple InventoryItem objects using the validated serializer.
+
+            This method is called internally by `create()` when a list of items is posted.
+        """
+        serializer.save()
