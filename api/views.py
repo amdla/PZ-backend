@@ -22,6 +22,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.authtoken.models import Token
 
 from .models import Inventory, InventoryItem
 from .permissions import IsStaffUser
@@ -75,8 +76,11 @@ class OAuthLoginView(APIView):
         consumer_key = settings.USOS_CONSUMER_KEY
         consumer_secret = settings.USOS_CONSUMER_SECRET
 
+        # Pobierz parametr 'source' z zapytania
+        source = request.query_params.get('source', 'web')
+
         # Build the absolute callback URL dynamically.
-        callback_uri = request.build_absolute_uri('/oauth/callback/')
+        callback_uri = request.build_absolute_uri(f'/oauth/callback/?source={source}')
         oauth = OAuth1Session(consumer_key, client_secret=consumer_secret, callback_uri=callback_uri)
 
         # Step 1: Obtain an unauthorized Request Token.
@@ -185,7 +189,7 @@ class OAuthCallbackView(APIView):
         usos_staff_status = user_info.get('staff_status')  # Getting staff status from USOS
         # 0 - student, 1 - worker but not teacher, 2 - teacher
 
-        is_staff_member = False
+        is_staff_member = False # TO CHANGE, FOR TESTING PURPOSES
         if usos_staff_status == 1 or usos_staff_status == 2:
             is_staff_member = True
 
@@ -234,10 +238,20 @@ class OAuthCallbackView(APIView):
             login(request, user)
             logger.info(f"OAuthCallbackView: User {username} logged in successfully.")
 
-            # Serialize the user data to return to the frontend
-            serializer = UserSerializer(user)
-            return Response(serializer.data, status=200)
+            source = request.query_params.get('source')
 
+            if source == 'mobile':
+                # APLIKACJA MOBILNA: Zwróć dane usera i token API
+                token, _ = Token.objects.get_or_create(user=user)
+                serializer = UserSerializer(user)
+                response_data = serializer.data
+                response_data['token'] = token.key
+                return Response(response_data, status=status.HTTP_200_OK)
+            else :
+                # Token CSRF zostanie ustawiony w ciasteczku automatycznie przez Django
+                return redirect('http://localhost:3000')
+            
+            
         except Exception as e:
             logger.error(f"OAuthCallbackView: Database error during user provisioning for {username}: {e}",
                          exc_info=True)
