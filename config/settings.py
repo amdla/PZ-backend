@@ -74,8 +74,7 @@ MIDDLEWARE = [
 # Root URL configuration
 ROOT_URLCONF = 'config.urls'
 
-PW_VM = '10.42.15.103'
-ALLOWED_HOSTS = ['0.0.0.0', 'localhost',PW_VM]
+ALLOWED_HOSTS = ['0.0.0.0', 'localhost','10.42.15.103', 'api-inventario.dyplomy.iem.pw.edu.pl']
 
 # Database configuration
 DATABASES = {

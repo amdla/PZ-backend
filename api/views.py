@@ -239,17 +239,22 @@ class OAuthCallbackView(APIView):
             logger.info(f"OAuthCallbackView: User {username} logged in successfully.")
 
             source = request.query_params.get('source')
-
             if source == 'mobile':
-                # APLIKACJA MOBILNA: Zwróć dane usera i token API
                 token, _ = Token.objects.get_or_create(user=user)
                 serializer = UserSerializer(user)
                 response_data = serializer.data
                 response_data['token'] = token.key
                 return Response(response_data, status=status.HTTP_200_OK)
-            else :
-                # Token CSRF zostanie ustawiony w ciasteczku automatycznie przez Django
-                return redirect('http://localhost:3000')
+            elif source == 'backend_test': 
+                # ZEBY WEJSC W TEGO IFA : http://api-inventario.dyplomy.iem.pw.edu.pl:8000/oauth/login/?source=backend_test
+                
+                # Przekierowanie na adres backendu dla celów testowych
+                # Możesz użyć pełnej nazwy DNS dla backendu
+                return redirect('http://api-inventario.dyplomy.iem.pw.edu.pl:8000/')
+            else: # source == 'web' (domyślny)
+                # Docelowe przekierowanie na adres frontendu
+                # Upewnij się, że adres Twojej webówki jest poprawny
+                return redirect('http://inventario.dyplomy.iem.pw.edu.pl') # Adres frontendu na porcie 3000 bez jawnego portu
             
             
         except Exception as e:
