@@ -74,7 +74,8 @@ MIDDLEWARE = [
 # Root URL configuration
 ROOT_URLCONF = 'config.urls'
 
-ALLOWED_HOSTS = ['0.0.0.0', 'localhost']
+PW_VM = '10.42.15.103'
+ALLOWED_HOSTS = ['0.0.0.0', 'localhost',PW_VM]
 
 # Database configuration
 DATABASES = {
