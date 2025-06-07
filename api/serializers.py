@@ -90,6 +90,7 @@ class InventoryItemSerializer(serializers.ModelSerializer):
         - `initial_value` (decimal): Initial monetary value.
         - `lastInventoryRoom` (str): Room location established during previous Inventory.
         - `currentRoom` (str): Current room location.
+        - `scanned` (boolean): Information whether the item has been scanned yet.
 
 
     Relationships:
@@ -103,5 +104,5 @@ class InventoryItemSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'inventory', 'department', 'asset_group', 'category',
             'inventory_number', 'asset_component', 'sub_number', 'acquisition_date',
-            'asset_description', 'quantity', 'initial_value', 'lastInventoryRoom', 'currentRoom'
+            'asset_description', 'quantity', 'initial_value', 'lastInventoryRoom', 'currentRoom', 'scanned'
         ]

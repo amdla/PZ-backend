@@ -384,6 +384,7 @@ class InventoryItemViewSet(viewsets.ModelViewSet):
         - `initial_value` (decimal): Initial monetary value.
         - `lastInventoryRoom` (str): Room location during last inventory.
         - `currentRoom` (str): Current room location.
+        - `scanned` (boolean): Information whether the item has been scanned yet.
 
     Endpoints:
         - List all items (GET):             `/items/`
