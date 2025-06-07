@@ -246,15 +246,15 @@ class OAuthCallbackView(APIView):
                 response_data['token'] = token.key
                 return Response(response_data, status=status.HTTP_200_OK)
             elif source == 'backend_test': 
-                # ZEBY WEJSC W TEGO IFA : http://api-inventario.dyplomy.iem.pw.edu.pl:8000/oauth/login/?source=backend_test
+                # http://localhost:8000/oauth/login/?source=backend_test
                 
                 # Przekierowanie na adres backendu dla celów testowych
                 # Możesz użyć pełnej nazwy DNS dla backendu
-                return redirect('http://api-inventario.dyplomy.iem.pw.edu.pl:8000/')
+                return redirect('http://localhost:8000')
             else: # source == 'web' (domyślny)
                 # Docelowe przekierowanie na adres frontendu
                 # Upewnij się, że adres Twojej webówki jest poprawny
-                return redirect('http://inventario.dyplomy.iem.pw.edu.pl') # Adres frontendu na porcie 3000 bez jawnego portu
+                return redirect('http://localhost:3000') # Adres frontendu na porcie 3000 bez jawnego portu
             
             
         except Exception as e:

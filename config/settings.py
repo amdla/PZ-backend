@@ -19,8 +19,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = '/oauth/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 
-USE_X_FORWARDED_HOST = True
-
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -101,15 +99,3 @@ ALLOWED_REDIRECT_URIS = [
     # 'https://twoja-web-aplikacja.pl/', # Adres produkcyjny
     'moja-apka://oauth/callback',  # Mobile scheme
 ]
-
-# Mówi Django, by do budowania URLi używało nagłówka X-Forwarded-Host od proxy
-USE_X_FORWARDED_HOST = True
-
-# Mówi Django, by ufało nagłówkowi X-Forwarded-Proto i wiedziało, że jest za bezpiecznym proxy
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-
-# Wymusza wysyłanie ciasteczek CSRF tylko przez HTTPS
-CSRF_COOKIE_SECURE = True
-
-# Wymusza wysyłanie ciasteczek sesji tylko przez HTTPS
-SESSION_COOKIE_SECURE = True
