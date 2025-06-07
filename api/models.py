@@ -12,7 +12,6 @@ Each model automatically includes an `id` field as a primary key.
 from django.contrib.auth.models import User
 from django.db import models
 
-
 class Inventory(models.Model):
     """
     Represents an inventory owned by a user.

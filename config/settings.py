@@ -19,6 +19,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = '/oauth/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 
+USE_X_FORWARDED_HOST = True
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
