@@ -23,6 +23,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
+from rest_framework.renderers import JSONRenderer
+from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 
 from .models import Inventory, InventoryItem
 from .permissions import IsStaffUser
@@ -78,6 +80,7 @@ class OAuthLoginView(APIView):
 
         # Pobierz parametr 'source' z zapytania
         source = request.query_params.get('source', 'web')
+        request.session['oauth_source'] = source
 
         # Build the absolute callback URL dynamically.
         callback_uri = request.build_absolute_uri(f'/oauth/callback/?source={source}')
@@ -101,6 +104,8 @@ class OAuthCallbackView(APIView):
     exchanges them for an access token, and then logs in or creates a Django user.
     For demonstration purposes, this view returns the access token details.
     """
+
+    renderer_classes = [JSONRenderer]
 
     def get(self, request, format=None):
         consumer_key = settings.USOS_CONSUMER_KEY
@@ -234,11 +239,14 @@ class OAuthCallbackView(APIView):
                 else:
                     logger.info(f"OAuthCallbackView: User {username} already up-to-date.")
 
-            # Log the user in
-            login(request, user)
-            logger.info(f"OAuthCallbackView: User {username} logged in successfully.")
 
-            source = request.query_params.get('source')
+            source = request.session.get('oauth_source', 'web')
+
+            # Loguj do sesji TYLKO jeśli to nie jest aplikacja mobilna
+            if source != 'mobile':
+                login(request, user)
+                logger.info(f"OAuthCallbackView: User {username} logged in successfully via session.")
+
             if source == 'mobile':
                 token, _ = Token.objects.get_or_create(user=user)
                 serializer = UserSerializer(user)
@@ -304,6 +312,7 @@ class UserViewSet(viewsets.ModelViewSet):
         - Delete a user (DELETE):     `/users/{id}/`
     """
     permission_classes = [IsAuthenticated, IsStaffUser]
+    authentication_classes = [SessionAuthentication, TokenAuthentication]
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
@@ -332,6 +341,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
         - Delete an inventory (DELETE):     `/inventories/{id}/`
     """
     permission_classes = [IsAuthenticated, IsStaffUser]
+    authentication_classes = [SessionAuthentication, TokenAuthentication]
     serializer_class = InventorySerializer
     queryset = Inventory.objects.all()
 
@@ -394,6 +404,7 @@ class InventoryItemViewSet(viewsets.ModelViewSet):
         - Delete an item (DELETE):          `/items/{id}/`
     """
     permission_classes = [IsAuthenticated, IsStaffUser]
+    authentication_classes = [SessionAuthentication, TokenAuthentication]
     serializer_class = InventoryItemSerializer
     queryset = InventoryItem.objects.all()
 
